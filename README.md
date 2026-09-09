@@ -58,6 +58,23 @@ Google Sheets를 데이터베이스로, Google Apps Script를 백엔드/웹서�
 - **카테고리 추가/변경**: `Code.gs`의 `CATEGORIES` 배열과 `JavaScript.html`의 `CATEGORY_ICON` / `CATEGORY_BADGE_CLASS`, `Stylesheet.html`의 `.badge-*`를 함께 수정하세요.
 - **이미지 업로드**: 현재는 URL 입력 방식입니다. 실제 파일 업로드가 필요하면 Google Drive API(`DriveApp`)를 이용해 업로드 후 URL을 저장하는 방식으로 확장할 수 있습니다.
 
+## clasp로 동기화하기 (선택, 권장)
+
+이 프로젝트는 [`clasp`](https://github.com/google/clasp)(구글 공식 CLI)로 Apps Script 프로젝트와 연결되어 있습니다. `.clasp.json`에 스크립트 ID가 저장되어 있어서, 아래 명령어로 브라우저 복사·붙여넣기 없이 바로 동기화할 수 있습니다.
+
+```bash
+npm install -g @google/clasp   # 최초 1회
+clasp login                    # 최초 1회, 구글 로그인
+clasp push                     # 로컬 수정사항 -> Apps Script에 반영
+clasp pull                     # Apps Script 내용 -> 로컬로 가져오기
+clasp open                     # 브라우저에서 Apps Script 편집기 열기
+clasp deploy                   # 새 버전으로 배포 (웹 앱 URL 갱신)
+```
+
+- 백엔드 파일은 로컬에서 **`Code.js`** 로 관리됩니다 (clasp가 Apps Script의 `.gs` 파일을 로컬에서는 `.js`로 다룹니다). Apps Script 편집기에는 그대로 `Code.gs`로 보입니다.
+- `appsscript.json`은 프로젝트 매니페스트(권한 범위, 웹앱 실행 설정 등)입니다. 실수로 지우지 마세요.
+- 코드를 고친 뒤 `clasp push`만으로는 **기존 배포에 반영되지 않습니다.** 배포된 웹앱 URL에 반영하려면 `clasp deploy` 를 실행하거나, Apps Script 편집기에서 배포 관리 후 새 버전으로 재배포해야 합니다.
+
 ## 알려진 제한사항
 
 - 별도 로그인 기능은 없습니다(닉네임만 입력). 실제 서비스로 쓰려면 Google 계정 인증(`Session.getActiveUser()`) 또는 별도 로그인 로직 추가를 권장합니다.
