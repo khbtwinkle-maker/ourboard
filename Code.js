@@ -222,23 +222,29 @@ function createPost(data) {
   var content = (data.content || '').trim();
   if (!title || !content) throw new Error('제목과 내용을 입력해주세요.');
 
+  var category = data.category || 'free';
+  var author = (data.author || '').trim() || '익명';
+  var image = data.image || '';
+
   var sheet = getPostsSheet();
   var posts = rowsToObjects(sheet, POSTS_HEADER);
   var id = nextId(posts);
 
-  var row = [
-    id,
-    data.category || 'free',
-    title,
-    content,
-    (data.author || '').trim() || '익명',
-    new Date().toISOString(),
-    0, 0, 0,
-    data.image || '',
-    false
-  ];
+  var row = [id, category, title, content, author, new Date().toISOString(), 0, 0, 0, image, false];
   sheet.appendRow(row);
+
+  // 닉네임/제목/내용 등이 숫자로만 되어 있으면 시트가 자동으로 숫자 타입으로 저장해버리는 걸 방지
+  forceTextColumns(sheet, sheet.getLastRow(), {
+    2: category, 3: title, 4: content, 5: author, 10: image
+  });
+
   return { id: id };
+}
+
+function forceTextColumns(sheet, row, colToValue) {
+  Object.keys(colToValue).forEach(function (col) {
+    sheet.getRange(row, Number(col)).setNumberFormat('@').setValue(colToValue[col]);
+  });
 }
 
 function addComment(data) {
@@ -254,6 +260,7 @@ function addComment(data) {
   var author = (data.author || '').trim() || '익명';
 
   commentsSheet.appendRow([id, postId, author, content, date]);
+  forceTextColumns(commentsSheet, commentsSheet.getLastRow(), { 3: author, 4: content });
 
   var postsSheet = getPostsSheet();
   var posts = rowsToObjects(postsSheet, POSTS_HEADER);

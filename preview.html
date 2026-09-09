@@ -554,7 +554,7 @@
           '</div>' +
           '<div class="post-excerpt">' + escapeHtml(p.content) + '</div>' +
           '<div class="post-meta">' +
-            '<span class="post-author-avatar">' + escapeHtml((p.author || '?').charAt(0)) + '</span>' +
+            '<span class="post-author-avatar">' + escapeHtml(String(p.author || '?').charAt(0)) + '</span>' +
             '<span>' + escapeHtml(p.author) + '</span>' +
             '<span class="dot"></span><span>' + formatRelativeTime(p.date) + '</span>' +
           '</div>' +
@@ -589,7 +589,7 @@
 
   function renderRecent(list) {
     var el = document.getElementById('recentList');
-    el.innerHTML = list.map(function (p) { return '<li data-id="' + p.id + '"><span class="recent-avatar">' + escapeHtml((p.author || '?').charAt(0)) + '</span><div><div class="recent-title">' + escapeHtml(p.title) + '</div><div class="recent-time">' + formatRelativeTime(p.date) + '</div></div></li>'; }).join('');
+    el.innerHTML = list.map(function (p) { return '<li data-id="' + p.id + '"><span class="recent-avatar">' + escapeHtml(String(p.author || '?').charAt(0)) + '</span><div><div class="recent-title">' + escapeHtml(p.title) + '</div><div class="recent-time">' + formatRelativeTime(p.date) + '</div></div></li>'; }).join('');
     bindSidebarClicks(el);
   }
 
@@ -606,7 +606,7 @@
         '<span class="badge ' + badgeClass + '">' + escapeHtml(categoryLabel(post.category)) + '</span>' +
         '<h1 class="detail-title">' + escapeHtml(post.title) + '</h1>' +
         '<div class="detail-meta">' +
-          '<span class="post-author-avatar">' + escapeHtml((post.author || '?').charAt(0)) + '</span>' +
+          '<span class="post-author-avatar">' + escapeHtml(String(post.author || '?').charAt(0)) + '</span>' +
           '<span>' + escapeHtml(post.author) + '</span><span class="dot"></span>' +
           '<span>' + formatRelativeTime(post.date) + '</span><span class="dot"></span>' +
           '<span>조회 ' + post.views + '</span>' +
