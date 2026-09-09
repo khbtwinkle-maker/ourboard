@@ -18,7 +18,7 @@ var CATEGORIES = [
   { key: 'notice', label: '공지사항',    icon: 'megaphone' }
 ];
 
-var POSTS_HEADER = ['id','category','title','content','author','date','views','likes','commentCount','image','pinned'];
+var POSTS_HEADER = ['id','category','title','content','author','date','views','likes','commentCount','image','pinned','dislikes'];
 var COMMENTS_HEADER = ['id','postId','author','content','date'];
 
 /* ---------------- 웹앱 진입점 (JSON API 전용) ---------------- */
@@ -34,6 +34,7 @@ var API_ACTIONS = {
   createPost: function (p) { return createPost(p); },
   addComment: function (p) { return addComment(p); },
   likePost: function (p) { return likePost(p.id); },
+  dislikePost: function (p) { return dislikePost(p.id); },
   uploadImage: function (p) { return uploadImage(p.base64Data, p.fileName, p.mimeType); }
 };
 
@@ -80,6 +81,10 @@ function getOrCreateSheet(name, header) {
     sh = ss.insertSheet(name);
     sh.appendRow(header);
     sh.setFrozenRows(1);
+  } else if (sh.getLastColumn() < header.length) {
+    // 나중에 컬럼(예: dislikes)이 추가된 경우 기존 시트 헤더에도 뒤에 채워넣기
+    sh.getRange(1, sh.getLastColumn() + 1, 1, header.length - sh.getLastColumn())
+      .setValues([header.slice(sh.getLastColumn())]);
   }
   return sh;
 }
@@ -132,14 +137,14 @@ function initializeSheets() {
   function daysAgo(d) { return new Date(now.getTime() - d * 24 * 3600 * 1000).toISOString(); }
 
   var seed = [
-    [1, 'notice', '게시판 이용 수칙 안내드립니다.', '건전한 커뮤니티 문화를 위해 게시판 이용 수칙을 꼭 확인해주세요!\n\n1. 서로를 존중하는 말을 사용해주세요.\n2. 광고성 게시글은 삭제될 수 있습니다.\n3. 즐겁고 따뜻한 공간을 함께 만들어가요.', '운영자', daysAgo(3), 1200, 32, 12, '', true],
-    [2, 'free', '오늘 날씨 너무 좋네요 ☀️', '다들 주말에 뭐 하시나요? 저는 오늘 카페에서 여유롭게 커피 한 잔 했어요.', '하늘구름', hoursAgo(1), 256, 18, 5, '', false],
-    [3, 'daily', '강아지랑 산책 다녀왔어요🐾', '날씨가 좋아서 오랜만에 공원에 다녀왔는데 너무 행복해하더라구요 ㅎㅎ', '몽실이', hoursAgo(3), 312, 24, 8, '', false],
-    [4, 'info', '요즘 핫한 여름 카페 추천해요!', '분위기도 좋고 음료도 맛있어서 강추해요. 사진도 같이 올려볼게요 :)', '카페좋아', hoursAgo(5), 489, 37, 11, '', false],
-    [5, 'qna', '노트북 추천 부탁드려요!', '대학생인데 가성비 좋은 노트북 어떤 게 좋을까요? 사용 목적은 과제랑...', '지니', hoursAgo(6), 210, 12, 7, '', false],
-    [6, 'hobby', '요즘 꽃꽂이에 빠졌어요🌷', '집에서 꽃꽂이 해보려고 재료를 모으는 중인데, 혹시 추천할 만한 사이트...', '꽃길만걷자', hoursAgo(8), 167, 9, 4, '', false],
-    [7, 'free', '주말에 뭐 하세요?', '저는 친구들이랑 영화 보러 갈 예정이에요! 다들 뭐 하실지 궁금하네요ㅎㅎ', '달콤한커피', hoursAgo(10), 298, 16, 6, '', false],
-    [8, 'daily', '오늘도 수고했어요 :)', '하루가 정말 빨리 지나가는 것 같아요. 모두들 오늘도 고생했어요!', '행복한나', hoursAgo(12), 423, 27, 10, '', false]
+    [1, 'notice', '게시판 이용 수칙 안내드립니다.', '건전한 커뮤니티 문화를 위해 게시판 이용 수칙을 꼭 확인해주세요!\n\n1. 서로를 존중하는 말을 사용해주세요.\n2. 광고성 게시글은 삭제될 수 있습니다.\n3. 즐겁고 따뜻한 공간을 함께 만들어가요.', '운영자', daysAgo(3), 1200, 32, 12, '', true, 0],
+    [2, 'free', '오늘 날씨 너무 좋네요 ☀️', '다들 주말에 뭐 하시나요? 저는 오늘 카페에서 여유롭게 커피 한 잔 했어요.', '하늘구름', hoursAgo(1), 256, 18, 5, '', false, 0],
+    [3, 'daily', '강아지랑 산책 다녀왔어요🐾', '날씨가 좋아서 오랜만에 공원에 다녀왔는데 너무 행복해하더라구요 ㅎㅎ', '몽실이', hoursAgo(3), 312, 24, 8, '', false, 0],
+    [4, 'info', '요즘 핫한 여름 카페 추천해요!', '분위기도 좋고 음료도 맛있어서 강추해요. 사진도 같이 올려볼게요 :)', '카페좋아', hoursAgo(5), 489, 37, 11, '', false, 0],
+    [5, 'qna', '노트북 추천 부탁드려요!', '대학생인데 가성비 좋은 노트북 어떤 게 좋을까요? 사용 목적은 과제랑...', '지니', hoursAgo(6), 210, 12, 7, '', false, 0],
+    [6, 'hobby', '요즘 꽃꽂이에 빠졌어요🌷', '집에서 꽃꽂이 해보려고 재료를 모으는 중인데, 혹시 추천할 만한 사이트...', '꽃길만걷자', hoursAgo(8), 167, 9, 4, '', false, 0],
+    [7, 'free', '주말에 뭐 하세요?', '저는 친구들이랑 영화 보러 갈 예정이에요! 다들 뭐 하실지 궁금하네요ㅎㅎ', '달콤한커피', hoursAgo(10), 298, 16, 6, '', false, 0],
+    [8, 'daily', '오늘도 수고했어요 :)', '하루가 정말 빨리 지나가는 것 같아요. 모두들 오늘도 고생했어요!', '행복한나', hoursAgo(12), 423, 27, 10, '', false, 0]
   ];
 
   seed.forEach(function (row) { postsSheet.appendRow(row); });
@@ -262,7 +267,7 @@ function createPost(data) {
   var posts = rowsToObjects(sheet, POSTS_HEADER);
   var id = nextId(posts);
 
-  var row = [id, category, title, content, author, new Date().toISOString(), 0, 0, 0, image, false];
+  var row = [id, category, title, content, author, new Date().toISOString(), 0, 0, 0, image, false, 0];
   sheet.appendRow(row);
 
   // 닉네임/제목/내용 등이 숫자로만 되어 있으면 시트가 자동으로 숫자 타입으로 저장해버리는 걸 방지
@@ -317,6 +322,20 @@ function likePost(id) {
       var newLikes = (Number(posts[i].likes) || 0) + 1;
       sheet.getRange(posts[i]._row, POSTS_HEADER.indexOf('likes') + 1).setValue(newLikes);
       return { likes: newLikes };
+    }
+  }
+  throw new Error('게시글을 찾을 수 없습니다.');
+}
+
+function dislikePost(id) {
+  id = Number(id);
+  var sheet = getPostsSheet();
+  var posts = rowsToObjects(sheet, POSTS_HEADER);
+  for (var i = 0; i < posts.length; i++) {
+    if (Number(posts[i].id) === id) {
+      var newDislikes = (Number(posts[i].dislikes) || 0) + 1;
+      sheet.getRange(posts[i]._row, POSTS_HEADER.indexOf('dislikes') + 1).setValue(newDislikes);
+      return { dislikes: newDislikes };
     }
   }
   throw new Error('게시글을 찾을 수 없습니다.');

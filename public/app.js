@@ -16,7 +16,9 @@
     eye: '<svg class="i" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.4"/></svg>',
     heartOutline: '<svg class="i" viewBox="0 0 24 24"><path d="M12 19s-6.5-4-8.5-8C2 8 3.3 5.5 6 5.5c1.7 0 3 1 3.5 2.1.5-1.1 1.8-2.1 3.5-2.1 2.7 0 4 2.5 2.5 5.5-2 4-8.5 8-8.5 8z"/></svg>',
     comment: '<svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v10H9l-4 4v-4H4z"/></svg>',
-    pin: '<svg class="i" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l1.5 5.5L19 9l-4.5 3L16 18l-4-3.2L8 18l1.5-6L5 9l5.5-1.5z"/></svg>'
+    pin: '<svg class="i" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l1.5 5.5L19 9l-4.5 3L16 18l-4-3.2L8 18l1.5-6L5 9l5.5-1.5z"/></svg>',
+    thumbsDown: '<svg class="i" viewBox="0 0 24 24"><path d="M14 3H7.5c-1 0-1.8.7-2 1.6L4 11v1.5c0 1 .8 1.8 1.8 1.8H10l-1 4.5c-.2.9.4 1.7 1.3 1.9.6.1 1.2-.1 1.6-.6L17 14"/><path d="M17 3h2.5c.6 0 1 .4 1 1v9c0 .6-.4 1-1 1H17"/></svg>',
+    moon: '<svg class="i" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.7 6.7 0 0 0 10.5 10.5z"/></svg>'
   };
   function icon(name) { return ICONS[name] || ''; }
 
@@ -46,6 +48,7 @@
 
   function boot() {
     setStaticIcons();
+    initTheme();
     bindEvents();
     callApi('getInitData').then(onInitData).catch(onError);
   }
@@ -58,7 +61,33 @@
     document.getElementById('icon-sun').innerHTML = icon('sun');
   }
 
+  /* ---------------- 다크모드 ---------------- */
+
+  function getTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function initTheme() {
+    renderThemeToggleIcon();
+  }
+
+  function renderThemeToggleIcon() {
+    document.getElementById('themeToggle').innerHTML = icon(getTheme() === 'dark' ? 'sun' : 'moon');
+  }
+
+  function toggleTheme() {
+    var next = getTheme() === 'dark' ? 'light' : 'dark';
+    if (next === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    try { localStorage.setItem('theme', next); } catch (e) {}
+    renderThemeToggleIcon();
+  }
+
   function bindEvents() {
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
     document.getElementById('writeBtn').addEventListener('click', showWrite);
     document.getElementById('writeCancelBtn').addEventListener('click', backToList);
     document.getElementById('backBtn').addEventListener('click', backToList);
@@ -270,7 +299,10 @@
       '</div>' +
       (post.image ? '<img class="detail-image" src="' + escapeAttr(post.image) + '">' : '') +
       '<div class="detail-body">' + escapeHtml(post.content) + '</div>' +
-      '<div class="detail-actions"><button class="like-btn" id="likeBtn">' + icon('heartOutline') + ' 좋아요 <span id="likeCount">' + post.likes + '</span></button></div>' +
+      '<div class="detail-actions">' +
+        '<button class="reaction-btn like-btn" id="likeBtn">' + icon('heartOutline') + ' 좋아요 <span id="likeCount">' + post.likes + '</span></button>' +
+        '<button class="reaction-btn dislike-btn" id="dislikeBtn">' + icon('thumbsDown') + ' 싫어요 <span id="dislikeCount">' + (post.dislikes || 0) + '</span></button>' +
+      '</div>' +
       '<div class="comments-block">' +
         '<h3>댓글 ' + post.comments.length + '</h3>' +
         '<div id="commentList">' + post.comments.map(renderComment).join('') + '</div>' +
@@ -283,6 +315,7 @@
     document.getElementById('detailContent').innerHTML = html;
 
     document.getElementById('likeBtn').addEventListener('click', function () { doLike(post.id); });
+    document.getElementById('dislikeBtn').addEventListener('click', function () { doDislike(post.id); });
     document.getElementById('commentSubmitBtn').addEventListener('click', function () { submitComment(post.id); });
     document.getElementById('commentContent').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') submitComment(post.id);
@@ -298,6 +331,12 @@
   function doLike(id) {
     callApi('likePost', { id: id }).then(function (res) {
       document.getElementById('likeCount').textContent = res.likes;
+    }).catch(onError);
+  }
+
+  function doDislike(id) {
+    callApi('dislikePost', { id: id }).then(function (res) {
+      document.getElementById('dislikeCount').textContent = res.dislikes;
     }).catch(onError);
   }
 
