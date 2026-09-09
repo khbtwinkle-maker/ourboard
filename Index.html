@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <?!= include('Stylesheet'); ?>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon" id="icon-logo"></span>
+        <span class="logo-text">OurBoard</span>
+      </div>
+      <nav class="main-nav">
+        <a href="#" class="nav-link active" data-nav="home">홈</a>
+        <a href="#" class="nav-link" data-nav="board">게시판</a>
+        <a href="#" class="nav-link" data-nav="notice">공지사항</a>
+        <a href="#" class="nav-link" data-nav="photo">포토</a>
+        <a href="#" class="nav-link" data-nav="mypage">마이페이지</a>
+      </nav>
+      <div class="user-icon" id="icon-user"></div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-text">
+        <h1>좋은 사람들과<br>더 좋은 이야기를 <span class="wave">﹒﹒</span></h1>
+        <p>일상의 소소한 이야기부터, 특별한 순간까지<br>지금, 여기서 함께해요.</p>
+      </div>
+      <div class="hero-search">
+        <span id="icon-search-hero"></span>
+        <input type="text" id="heroSearchInput" placeholder="게시글 검색하기">
+      </div>
+    </div>
+    <div class="hero-deco" aria-hidden="true">
+      <span class="petal p1">🌼</span><span class="petal p2">🌼</span><span class="petal p3">🌸</span>
+      <span class="petal p4">🌼</span><span class="petal p5">🌸</span><span class="petal p6">🌼</span>
+    </div>
+  </section>
+
+  <!-- Main layout -->
+  <div class="layout">
+
+    <!-- Left sidebar -->
+    <aside class="sidebar-left">
+      <button class="write-btn" id="writeBtn">
+        <span id="icon-pencil"></span> 글쓰기
+      </button>
+
+      <nav class="category-list" id="categoryList"></nav>
+
+      <div class="promo-card promo-tulip">
+        <p>오늘도<br>좋은 하루 되세요</p>
+        <span class="promo-emoji">🌷</span>
+      </div>
+    </aside>
+
+    <!-- Center content -->
+    <main class="content">
+
+      <!-- LIST VIEW -->
+      <section id="view-list" class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="boardTitle">전체 게시판</h2>
+            <p class="sub" id="boardSub">다양한 이야기가 모이는 공간이에요.</p>
+          </div>
+          <div class="sort-tabs" id="sortTabs">
+            <button class="sort-tab active" data-sort="latest">최신순</button>
+            <button class="sort-tab" data-sort="popular">인기순</button>
+            <button class="sort-tab" data-sort="liked">추천순</button>
+          </div>
+        </div>
+
+        <div class="post-list" id="postList"></div>
+
+        <div class="pagination" id="pagination"></div>
+      </section>
+
+      <!-- DETAIL VIEW -->
+      <section id="view-detail" class="panel hidden">
+        <button class="back-btn" id="backBtn">← 목록으로</button>
+        <div id="detailContent"></div>
+      </section>
+
+      <!-- WRITE VIEW -->
+      <section id="view-write" class="panel hidden">
+        <h2>글쓰기</h2>
+        <p class="sub">이야기를 자유롭게 남겨보세요.</p>
+        <form id="writeForm" class="write-form">
+          <label>카테고리</label>
+          <select id="writeCategory"></select>
+
+          <label>작성자</label>
+          <input type="text" id="writeAuthor" placeholder="닉네임을 입력하세요 (선택)">
+
+          <label>제목</label>
+          <input type="text" id="writeTitle" placeholder="제목을 입력하세요" required>
+
+          <label>내용</label>
+          <textarea id="writeContentField" rows="10" placeholder="내용을 입력하세요" required></textarea>
+
+          <label>이미지 URL (선택)</label>
+          <input type="text" id="writeImage" placeholder="https://...">
+
+          <div class="write-actions">
+            <button type="button" class="btn-ghost" id="writeCancelBtn">취소</button>
+            <button type="submit" class="btn-primary">등록하기</button>
+          </div>
+        </form>
+      </section>
+
+    </main>
+
+    <!-- Right sidebar -->
+    <aside class="sidebar-right">
+      <div class="card">
+        <h3><span id="icon-sun"></span> 오늘의 인기글</h3>
+        <ol class="ranked-list" id="popularList"></ol>
+      </div>
+
+      <div class="promo-card promo-sunset">
+        <p>좋은 글은<br>언제나<br>사람을 웃게 해요.</p>
+        <span class="promo-emoji">🙂</span>
+      </div>
+
+      <div class="card">
+        <h3>최근 작성 글</h3>
+        <ul class="recent-list" id="recentList"></ul>
+      </div>
+
+      <div class="promo-card promo-quote">
+        <p>함께 만드는<br>더 좋은 커뮤니티</p>
+        <span class="promo-emoji">♡</span>
+      </div>
+    </aside>
+
+  </div>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
