@@ -1,41 +1,59 @@
-# OurBoard — Google Sheets + Apps Script 게시판
+# OurBoard — Google Sheets 기반 커뮤니티 게시판
 
 디자인 시안(`d2ba298f-8487-4da8-88d1-3e84f62d415c.png`)을 기반으로 만든 커뮤니티 게시판입니다.
-Google Sheets를 데이터베이스로, Google Apps Script를 백엔드/웹서버로 사용하고, HTML/CSS/JS로 프론트엔드를 구현했습니다.
+
+**구조**: 화면(HTML/CSS/JS)은 정적 사이트로 **Cloudflare Pages**에서 서비스하고, **Google Apps Script**는 Google Sheets를 데이터베이스로 다루는 순수 JSON API 역할만 합니다. 화면이 `fetch()`로 Apps Script API를 호출하는 구조라서, 사용자가 보는 주소는 `script.google.com/...` 이 아니라 Cloudflare Pages 주소(예: `ourboard.pages.dev`)가 되고, Google Apps Script 안내 배너도 뜨지 않습니다.
+
+```
+브라우저 ──fetch()──> Apps Script(JSON API) ──> Google Sheets (Posts, Comments)
+   ↑                                          └──(이미지 업로드 시)──> Cloudflare R2
+Cloudflare Pages가 정적 파일(public/) 서빙
+```
 
 ## 파일 구성
 
-| 파일 | 역할 |
+| 경로 | 역할 |
 |---|---|
-| `Code.gs` | 백엔드 로직 — 시트 CRUD, 웹앱 진입점(`doGet`), API 함수 |
-| `Index.html` | 페이지 골격(HTML) |
-| `Stylesheet.html` | 전체 스타일(CSS) |
-| `JavaScript.html` | 프론트엔드 로직(JS) — `google.script.run`으로 백엔드 호출 |
+| `Code.js` | Apps Script 백엔드 — 시트 CRUD, R2 업로드, `doGet`/`doPost` JSON API |
+| `appsscript.json` | Apps Script 매니페스트 (웹앱 실행 설정) |
+| `public/index.html` | 정적 페이지 골격(HTML) — Cloudflare Pages가 이 폴더를 그대로 서빙 |
+| `public/style.css` | 전체 스타일(CSS) |
+| `public/app.js` | 프론트엔드 로직(JS) — `fetch()`로 Apps Script API 호출 |
+| `.clasp.json` / `.claspignore` | clasp 설정 — `Code.js`, `appsscript.json`만 Apps Script로 push됨 |
 
-## 설치 방법 (5분)
+## 설치 방법
+
+### 1) 백엔드 (Google Sheets + Apps Script)
 
 1. **새 Google Sheets 문서를 만듭니다.** (sheets.new)
 2. 메뉴에서 **확장 프로그램 → Apps Script** 클릭.
-3. 기본 생성된 `코드.gs`(또는 `Code.gs`) 내용을 전부 지우고, 이 프로젝트의 `Code.gs` 내용을 붙여넣습니다.
-4. 왼쪽 파일 목록의 **+ → HTML** 을 눌러 파일을 3개 추가합니다. 파일명은 반드시 아래와 **정확히** 일치해야 합니다 (확장자 `.html`은 자동으로 붙습니다).
-   - `Index` → 이 프로젝트의 `Index.html` 내용 붙여넣기
-   - `Stylesheet` → 이 프로젝트의 `Stylesheet.html` 내용 붙여넣기
-   - `JavaScript` → 이 프로젝트의 `JavaScript.html` 내용 붙여넣기
-5. 상단 툴바의 함수 선택 드롭다운에서 **`initializeSheets`** 를 선택하고 ▶(실행) 버튼을 누릅니다.
+3. 기본 생성된 `코드.gs` 내용을 전부 지우고, 이 프로젝트의 `Code.js` 내용을 붙여넣습니다. (파일명은 `Code`로 두면 됩니다.)
+4. 상단 툴바의 함수 선택 드롭다운에서 **`initializeSheets`** 를 선택하고 ▶(실행) 버튼을 누릅니다.
    - 처음 실행 시 "승인 필요" 팝업이 뜨면 본인 계정으로 권한을 승인해주세요.
    - 실행이 끝나면 스프레드시트에 `Posts`, `Comments` 시트가 생성되고 샘플 게시글 8개가 들어갑니다.
-6. **배포 → 새 배포** 클릭 → 유형에서 톱니바퀴를 눌러 **웹 앱** 선택.
+5. **배포 → 새 배포** → 유형에서 톱니바퀴를 눌러 **웹 앱** 선택.
    - 실행 사용자: **나**
-   - 액세스 권한: **전체(익명 포함)** 또는 조직 내 전체 (원하는 공개 범위 선택)
-   - **배포** 클릭 → 발급된 웹 앱 URL로 접속하면 게시판이 열립니다.
-7. 코드를 수정한 뒤에는 **배포 → 배포 관리 → 수정(연필 아이콘) → 새 버전** 으로 다시 배포해야 반영됩니다.
+   - 액세스 권한: **전체(익명 포함)**
+   - **배포** 클릭 → 발급된 웹 앱 URL(`.../exec`)을 복사해두세요. 이게 API 주소입니다.
+6. `public/app.js` 맨 위쪽의 `API_URL` 값을 방금 복사한 주소로 바꿔주세요.
+
+### 2) 프론트엔드 (Cloudflare Pages)
+
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers 및 Pages** → **애플리케이션 만들기** → **Pages** 탭 → **Git에 연결**
+2. 이 프로젝트의 GitHub 저장소 선택
+3. 빌드 설정:
+   - **프레임워크 프리셋**: None
+   - **빌드 명령어**: (비워둠 — 정적 파일이라 빌드 불필요)
+   - **빌드 출력 디렉터리**: `public`
+4. **저장 및 배포** 클릭 → 몇 초 뒤 `https://ourboard.pages.dev` 같은 주소가 발급됩니다.
+5. 이후에는 GitHub에 `git push`만 하면 Cloudflare Pages가 자동으로 다시 배포합니다.
 
 ## 주요 기능
 
 - 카테고리별 게시판: 전체/자유게시판/질문과 답변/정보공유/일상 이야기/사진·추억/취미 생활/공지사항 (사이드바에 실시간 글 개수 표시)
 - 정렬: 최신순 / 인기순(조회수) / 추천순(좋아요)
 - 검색: 상단 히어로 검색창에서 제목+본문 검색
-- 글쓰기: 카테고리 선택, 작성자(선택, 미입력시 "익명"), 제목/내용, 이미지 URL(선택)
+- 글쓰기: 카테고리 선택, 작성자(선택, 미입력시 "익명"), 제목/내용, 이미지 파일 업로드(Cloudflare R2)
 - 게시글 상세: 조회수 자동 증가, 좋아요, 댓글 작성/목록
 - 공지글은 `pinned = TRUE`로 표시하면 목록 최상단에 고정
 - 오른쪽 사이드바: 오늘의 인기글 Top5(조회수 기준), 최근 작성 글 Top5
@@ -51,12 +69,26 @@ Google Sheets를 데이터베이스로, Google Apps Script를 백엔드/웹서�
 
 시트에 직접 행을 추가/수정해도 새로고침하면 바로 반영됩니다. `category` 값은 코드의 `CATEGORIES` 배열 key(`free`, `qna`, `info`, `daily`, `photo`, `hobby`, `notice`)와 일치해야 배지 색상이 정상 표시됩니다.
 
+## API (Apps Script가 제공하는 JSON API)
+
+`public/app.js`의 `callApi(action, payload)`가 Apps Script 웹앱 URL로 `POST { action, payload }`를 보내고 JSON을 돌려받습니다. (Apps Script는 커스텀 CORS 헤더 설정이 안 되기 때문에, preflight를 피하려고 `Content-Type: text/plain;charset=utf-8`로 보냅니다 — 실제 본문은 JSON 문자열입니다.)
+
+| action | payload | 설명 |
+|---|---|---|
+| `getInitData` | - | 카테고리별 글 개수, 인기글 Top5, 최근글 Top5 |
+| `getPosts` | `{category, sort, page, keyword}` | 목록 조회 |
+| `getPost` | `{id}` | 상세 조회 (조회수 +1) |
+| `createPost` | `{category, title, content, author, image}` | 글쓰기 |
+| `addComment` | `{postId, author, content}` | 댓글 작성 |
+| `likePost` | `{id}` | 좋아요 +1 |
+| `uploadImage` | `{base64Data, fileName, mimeType}` | R2에 이미지 업로드, 공개 URL 반환 |
+
 ## 커스터마이징 팁
 
-- **색상/톤**: `Stylesheet.html` 상단 `:root` 변수(`--primary`, `--bg` 등)와 카테고리 배지(`.badge-*`) 색상만 바꾸면 전체 톤이 바뀝니다.
+- **색상/톤**: `public/style.css` 상단 `:root` 변수(`--primary`, `--bg` 등)와 카테고리 배지(`.badge-*`) 색상만 바꾸면 전체 톤이 바뀝니다.
 - **히어로 배경 사진**: 지금은 이모지(🌼)로 꽃 장식을 흉내냈습니다. 실제 사진을 쓰려면 `.hero`에 `background-image: url('이미지주소')`를 추가하세요.
-- **카테고리 추가/변경**: `Code.gs`의 `CATEGORIES` 배열과 `JavaScript.html`의 `CATEGORY_ICON` / `CATEGORY_BADGE_CLASS`, `Stylesheet.html`의 `.badge-*`를 함께 수정하세요.
-- **이미지 업로드**: 현재는 URL 입력 방식입니다. 실제 파일 업로드가 필요하면 Google Drive API(`DriveApp`)를 이용해 업로드 후 URL을 저장하는 방식으로 확장할 수 있습니다.
+- **카테고리 추가/변경**: `Code.js`의 `CATEGORIES` 배열과 `public/app.js`의 `CATEGORY_ICON` / `CATEGORY_BADGE_CLASS`, `public/style.css`의 `.badge-*`를 함께 수정하세요.
+- **커스텀 도메인**: Cloudflare Pages 프로젝트 설정 → **사용자 지정 도메인**에서 보유한 도메인을 연결할 수 있습니다.
 
 ## 이미지 업로드 (Cloudflare R2) 설정
 
@@ -89,27 +121,28 @@ Google Sheets를 데이터베이스로, Google Apps Script를 백엔드/웹서�
 ### 참고
 - 이미지는 최대 8MB까지 허용됩니다 (`Code.js`의 `R2_MAX_BYTES`에서 조절 가능).
 - 업로드는 브라우저 → Apps Script(base64 전송) → R2 (AWS SigV4 서명 요청) 순서로 이뤄지며, R2 버킷 자체에 CORS 설정을 할 필요가 없습니다 (서버-서버 통신이라서요).
-- `preview.html`(로컬 미리보기)에서는 실제 R2를 쓰지 않고, 선택한 이미지를 그대로 화면에 보여주는 가짜 업로드로 동작합니다.
 
-## clasp로 동기화하기 (선택, 권장)
+## clasp로 Apps Script 동기화하기
 
-이 프로젝트는 [`clasp`](https://github.com/google/clasp)(구글 공식 CLI)로 Apps Script 프로젝트와 연결되어 있습니다. `.clasp.json`에 스크립트 ID가 저장되어 있어서, 아래 명령어로 브라우저 복사·붙여넣기 없이 바로 동기화할 수 있습니다.
+이 프로젝트는 [`clasp`](https://github.com/google/clasp)(구글 공식 CLI)로 Apps Script 프로젝트와 연결되어 있습니다. `.clasp.json`에 스크립트 ID가, `.claspignore`에 "Code.js와 appsscript.json만 push한다"는 설정이 들어있습니다 (public/ 폴더는 Cloudflare Pages가 별도로 서빙하므로 Apps Script에는 올리지 않습니다).
 
 ```bash
 npm install -g @google/clasp   # 최초 1회
 clasp login                    # 최초 1회, 구글 로그인
-clasp push                     # 로컬 수정사항 -> Apps Script에 반영
+clasp push                     # 로컬 Code.js 수정사항 -> Apps Script에 반영
 clasp pull                     # Apps Script 내용 -> 로컬로 가져오기
 clasp open                     # 브라우저에서 Apps Script 편집기 열기
-clasp deploy                   # 새 버전으로 배포 (웹 앱 URL 갱신)
+clasp deploy -i <배포ID>       # 기존 웹앱 URL에 새 버전 반영
 ```
 
-- 백엔드 파일은 로컬에서 **`Code.js`** 로 관리됩니다 (clasp가 Apps Script의 `.gs` 파일을 로컬에서는 `.js`로 다룹니다). Apps Script 편집기에는 그대로 `Code.gs`로 보입니다.
-- `appsscript.json`은 프로젝트 매니페스트(권한 범위, 웹앱 실행 설정 등)입니다. 실수로 지우지 마세요.
-- 코드를 고친 뒤 `clasp push`만으로는 **기존 배포에 반영되지 않습니다.** 배포된 웹앱 URL에 반영하려면 `clasp deploy` 를 실행하거나, Apps Script 편집기에서 배포 관리 후 새 버전으로 재배포해야 합니다.
+- `clasp deploy`를 `-i <배포ID>` 없이 실행하면 **완전히 새로운 URL의 배포가 생성됩니다.** 기존 URL(`API_URL`)을 유지하려면 반드시 `-i`로 기존 배포 ID를 지정하세요. (`clasp deployments`로 확인 가능)
+- 백엔드 파일은 로컬에서 **`Code.js`** 로 관리됩니다 (clasp가 Apps Script의 `.gs` 파일을 로컬에서는 `.js`로 다룹니다).
+- `clasp push`만으로는 **기존 배포에 반영되지 않습니다.** 실제 API URL에 반영하려면 `clasp deploy -i <배포ID>`까지 실행해야 합니다.
+- 프론트엔드(`public/`)는 clasp와 무관하게 GitHub push → Cloudflare Pages 자동 배포로 반영됩니다.
 
 ## 알려진 제한사항
 
-- 별도 로그인 기능은 없습니다(닉네임만 입력). 실제 서비스로 쓰려면 Google 계정 인증(`Session.getActiveUser()`) 또는 별도 로그인 로직 추가를 권장합니다.
+- 별도 로그인 기능은 없습니다(닉네임만 입력).
 - 좋아요는 중복 방지 로직이 없어 같은 사람이 여러 번 누를 수 있습니다.
+- Apps Script를 공개 JSON API로 쓰는 구조라서 API URL을 아는 사람은 누구나 글쓰기/댓글 API를 직접 호출할 수 있습니다 (원래 웹 화면에서도 동일하게 열려있던 범위입니다). 스팸이 걱정되면 간단한 요청 검증(예: 고정 토큰 검사)을 `Code.js`에 추가하는 걸 권장합니다.
 - 동시 편집이 매우 잦은 환경(수십 명 동시 접속)에서는 Sheets API 특성상 다소 느릴 수 있습니다. 소규모 커뮤니티용으로 적합합니다.

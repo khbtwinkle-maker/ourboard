@@ -21,18 +21,50 @@ var CATEGORIES = [
 var POSTS_HEADER = ['id','category','title','content','author','date','views','likes','commentCount','image','pinned'];
 var COMMENTS_HEADER = ['id','postId','author','content','date'];
 
-/* ---------------- 웹앱 진입점 ---------------- */
+/* ---------------- 웹앱 진입점 (JSON API 전용) ---------------- */
+/**
+ * 화면(HTML/CSS/JS)은 이제 이 프로젝트가 아니라 별도 정적 호스팅(Cloudflare Pages 등)에서 서비스합니다.
+ * 이 Apps Script는 fetch()로 호출하는 순수 JSON API 역할만 합니다.
+ */
+
+var API_ACTIONS = {
+  getInitData: function () { return getInitData(); },
+  getPosts: function (p) { return getPosts(p); },
+  getPost: function (p) { return getPost(p.id); },
+  createPost: function (p) { return createPost(p); },
+  addComment: function (p) { return addComment(p); },
+  likePost: function (p) { return likePost(p.id); },
+  uploadImage: function (p) { return uploadImage(p.base64Data, p.fileName, p.mimeType); }
+};
 
 function doGet(e) {
-  return HtmlService.createTemplateFromFile('Index')
-    .evaluate()
-    .setTitle('OurBoard')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  var action = e && e.parameter && e.parameter.action;
+  if (!action) {
+    return jsonOutput({ ok: true, message: 'OurBoard API. POST { action, payload } to this URL.' });
+  }
+  var payload = {};
+  try { payload = JSON.parse(e.parameter.payload || '{}'); } catch (err) {}
+  return apiDispatch(action, payload);
 }
 
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+function doPost(e) {
+  var body = {};
+  try { body = JSON.parse(e.postData.contents); } catch (err) {}
+  return apiDispatch(body.action, body.payload || {});
+}
+
+function apiDispatch(action, payload) {
+  var fn = API_ACTIONS[action];
+  if (!fn) return jsonOutput({ error: '알 수 없는 action입니다: ' + action });
+  try {
+    return jsonOutput(fn(payload || {}));
+  } catch (err) {
+    return jsonOutput({ error: err.message });
+  }
+}
+
+function jsonOutput(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
 /* ---------------- 시트 유틸 ---------------- */

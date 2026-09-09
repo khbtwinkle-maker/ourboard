@@ -1,4 +1,3 @@
-<script>
   /* ---------------- 아이콘 (인라인 SVG, feather 스타일) ---------------- */
   var ICONS = {
     logo: '<svg class="i" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-9.5-9C.7 7.2 2.3 4 5.5 4c2 0 3.2 1 3.5 2 .3-1 1.5-2 3.5-2 3.2 0 4.8 3.2 3 7-2.5 4.5-9 9-9 9z" transform="scale(0.85) translate(2,1)"/><path d="M8 12h1.5l1-2 2 4 1-2H15"/></svg>',
@@ -28,12 +27,27 @@
   var selectedImageFile = null;
   var MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+  var API_URL = 'https://script.google.com/macros/s/AKfycbz-ulpYWNLFfgyi7wnuSxnaLg2bLbM21-QtN8aEDnc45lKavJfpC6Ssy3yvWbGnza-tOQ/exec';
+
+  function callApi(action, payload) {
+    return fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: action, payload: payload || {} })
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && data.error) throw new Error(data.error);
+        return data;
+      });
+  }
+
   document.addEventListener('DOMContentLoaded', boot);
 
   function boot() {
     setStaticIcons();
     bindEvents();
-    google.script.run.withSuccessHandler(onInitData).withFailureHandler(onError).getInitData();
+    callApi('getInitData').then(onInitData).catch(onError);
   }
 
   function setStaticIcons() {
@@ -131,9 +145,9 @@
   /* ---------------- 목록 ---------------- */
 
   function loadPosts() {
-    google.script.run.withSuccessHandler(renderPostList).withFailureHandler(onError).getPosts({
+    callApi('getPosts', {
       category: STATE.category, sort: STATE.sort, page: STATE.page, keyword: STATE.keyword
-    });
+    }).then(renderPostList).catch(onError);
   }
 
   function renderPostList(data) {
@@ -234,11 +248,11 @@
   /* ---------------- 상세 보기 ---------------- */
 
   function openPost(id) {
-    google.script.run.withSuccessHandler(function (post) {
+    callApi('getPost', { id: id }).then(function (post) {
       STATE.currentPostId = post.id;
       renderDetail(post);
       showDetailView();
-    }).withFailureHandler(onError).getPost(id);
+    }).catch(onError);
   }
 
   function renderDetail(post) {
@@ -282,9 +296,9 @@
   }
 
   function doLike(id) {
-    google.script.run.withSuccessHandler(function (res) {
+    callApi('likePost', { id: id }).then(function (res) {
       document.getElementById('likeCount').textContent = res.likes;
-    }).withFailureHandler(onError).likePost(id);
+    }).catch(onError);
   }
 
   function submitComment(postId) {
@@ -292,11 +306,11 @@
     var contentEl = document.getElementById('commentContent');
     var content = contentEl.value.trim();
     if (!content) return;
-    google.script.run.withSuccessHandler(function (c) {
+    callApi('addComment', { postId: postId, author: authorEl.value, content: content }).then(function (c) {
       document.getElementById('commentList').insertAdjacentHTML('beforeend', renderComment(c));
       document.querySelector('.comments-block h3').textContent = '댓글 ' + c.commentCount;
       contentEl.value = '';
-    }).withFailureHandler(onError).addComment({ postId: postId, author: authorEl.value, content: content });
+    }).catch(onError);
   }
 
   /* ---------------- 글쓰기 ---------------- */
@@ -357,31 +371,33 @@
     var reader = new FileReader();
     reader.onload = function () {
       var base64 = reader.result.split(',')[1];
-      google.script.run.withSuccessHandler(function (res) {
+      callApi('uploadImage', {
+        base64Data: base64, fileName: selectedImageFile.name, mimeType: selectedImageFile.type
+      }).then(function (res) {
         payload.image = res.url;
         finishSubmitWrite(payload);
-      }).withFailureHandler(function (err) {
+      }).catch(function (err) {
         setWriteBusy(false);
         setUploadStatus('');
         onError(err);
-      }).uploadImage(base64, selectedImageFile.name, selectedImageFile.type);
+      });
     };
     reader.readAsDataURL(selectedImageFile);
   }
 
   function finishSubmitWrite(payload) {
     setUploadStatus('게시글 등록 중...');
-    google.script.run.withSuccessHandler(function (res) {
+    callApi('createPost', payload).then(function (res) {
       setWriteBusy(false);
       setUploadStatus('');
       backToList();
       openPost(res.id);
-      google.script.run.withSuccessHandler(onInitData).getInitData();
-    }).withFailureHandler(function (err) {
+      callApi('getInitData').then(onInitData).catch(onError);
+    }).catch(function (err) {
       setWriteBusy(false);
       setUploadStatus('');
       onError(err);
-    }).createPost(payload);
+    });
   }
 
   function setWriteBusy(busy) {
@@ -430,4 +446,3 @@
     });
   }
   function escapeAttr(str) { return escapeHtml(str); }
-</script>
