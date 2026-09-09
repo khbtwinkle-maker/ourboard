@@ -107,12 +107,17 @@
           <label>내용</label>
           <textarea id="writeContentField" rows="10" placeholder="내용을 입력하세요" required></textarea>
 
-          <label>이미지 URL (선택)</label>
-          <input type="text" id="writeImage" placeholder="https://...">
+          <label>이미지 (선택)</label>
+          <input type="file" id="writeImageFile" accept="image/*">
+          <div id="imagePreviewWrap" class="image-preview-wrap hidden">
+            <img id="imagePreview" alt="미리보기">
+            <button type="button" id="imageRemoveBtn" class="btn-ghost btn-small">제거</button>
+          </div>
 
           <div class="write-actions">
+            <span class="upload-status" id="uploadStatus"></span>
             <button type="button" class="btn-ghost" id="writeCancelBtn">취소</button>
-            <button type="submit" class="btn-primary">등록하기</button>
+            <button type="submit" class="btn-primary" id="writeSubmitBtn">등록하기</button>
           </div>
         </form>
       </section>

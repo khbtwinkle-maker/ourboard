@@ -140,10 +140,16 @@
   .write-form input, .write-form select, .write-form textarea { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; outline: none; width: 100%; }
   .write-form input:focus, .write-form select:focus, .write-form textarea:focus { border-color: var(--primary); }
   .write-form textarea { resize: vertical; }
-  .write-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .write-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .write-actions .upload-status { margin-right: auto; }
   .btn-primary { border: none; background: var(--primary); color: #fff; font-weight: 700; padding: 12px 26px; border-radius: var(--radius-sm); cursor: pointer; }
   .btn-primary:hover { background: var(--primary-dark); }
   .btn-ghost { border: 1px solid var(--border); background: #fff; color: var(--text-2); font-weight: 700; padding: 12px 22px; border-radius: var(--radius-sm); cursor: pointer; }
+  .btn-small { padding: 6px 14px; font-size: 12.5px; }
+  .image-preview-wrap { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .image-preview-wrap.hidden { display: none; }
+  .image-preview-wrap img { width: 90px; height: 90px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+  .upload-status { font-size: 12.5px; color: var(--text-2); margin-top: 6px; }
   .sidebar-right { display: flex; flex-direction: column; gap: 18px; }
   .card { background: var(--card-bg); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 20px; }
   .card h3 { font-size: 15px; font-weight: 800; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
@@ -236,11 +242,16 @@
           <input type="text" id="writeTitle" placeholder="제목을 입력하세요" required>
           <label>내용</label>
           <textarea id="writeContentField" rows="10" placeholder="내용을 입력하세요" required></textarea>
-          <label>이미지 URL (선택)</label>
-          <input type="text" id="writeImage" placeholder="https://...">
+          <label>이미지 (선택)</label>
+          <input type="file" id="writeImageFile" accept="image/*">
+          <div id="imagePreviewWrap" class="image-preview-wrap hidden">
+            <img id="imagePreview" alt="미리보기">
+            <button type="button" id="imageRemoveBtn" class="btn-ghost btn-small">제거</button>
+          </div>
           <div class="write-actions">
+            <span class="upload-status" id="uploadStatus"></span>
             <button type="button" class="btn-ghost" id="writeCancelBtn">취소</button>
-            <button type="submit" class="btn-primary">등록하기</button>
+            <button type="submit" class="btn-primary" id="writeSubmitBtn">등록하기</button>
           </div>
         </form>
       </section>
@@ -297,7 +308,7 @@
       withSuccessHandler: function (f) { ok = f; return runner; },
       withFailureHandler: function (f) { fail = f; return runner; }
     };
-    ['getInitData', 'getPosts', 'getPost', 'createPost', 'addComment', 'likePost'].forEach(function (name) {
+    ['getInitData', 'getPosts', 'getPost', 'createPost', 'addComment', 'likePost', 'uploadImage'].forEach(function (name) {
       runner[name] = function () {
         var args = arguments;
         try {
@@ -372,6 +383,10 @@
       var post = posts.filter(function (p) { return p.id === Number(id); })[0];
       post.likes++;
       return { likes: post.likes };
+    },
+    uploadImage: function (base64Data, fileName, mimeType) {
+      // 미리보기 전용: 실제 R2에 올리지 않고 data URL을 그대로 이미지로 사용합니다.
+      return { url: 'data:' + (mimeType || 'image/png') + ';base64,' + base64Data };
     }
   };
 
@@ -407,6 +422,8 @@
   var CATEGORY_BADGE_CLASS = { free: 'badge-free', qna: 'badge-qna', info: 'badge-info', daily: 'badge-daily', photo: 'badge-photo', hobby: 'badge-hobby', notice: 'badge-notice' };
 
   var STATE = { categories: [], counts: {}, category: 'all', sort: 'latest', page: 1, keyword: '', currentPostId: null };
+  var selectedImageFile = null;
+  var MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
   document.addEventListener('DOMContentLoaded', boot);
 
@@ -429,6 +446,8 @@
     document.getElementById('writeCancelBtn').addEventListener('click', backToList);
     document.getElementById('backBtn').addEventListener('click', backToList);
     document.getElementById('writeForm').addEventListener('submit', submitWrite);
+    document.getElementById('writeImageFile').addEventListener('change', onImageFileSelected);
+    document.getElementById('imageRemoveBtn').addEventListener('click', clearSelectedImage);
 
     document.querySelectorAll('.sort-tab').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -637,7 +656,32 @@
       sel.innerHTML = STATE.categories.filter(function (c) { return c.key !== 'all'; }).map(function (c) { return '<option value="' + c.key + '">' + escapeHtml(c.label) + '</option>'; }).join('');
     }
     document.getElementById('writeForm').reset();
+    clearSelectedImage();
     setView('write');
+  }
+
+  function onImageFileSelected(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      alert('이미지 용량은 최대 8MB까지 가능합니다.');
+      e.target.value = '';
+      return;
+    }
+    selectedImageFile = file;
+    var reader = new FileReader();
+    reader.onload = function () {
+      document.getElementById('imagePreview').src = reader.result;
+      document.getElementById('imagePreviewWrap').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearSelectedImage() {
+    selectedImageFile = null;
+    document.getElementById('writeImageFile').value = '';
+    document.getElementById('imagePreview').src = '';
+    document.getElementById('imagePreviewWrap').classList.add('hidden');
   }
 
   function submitWrite(e) {
@@ -647,13 +691,53 @@
       author: document.getElementById('writeAuthor').value,
       title: document.getElementById('writeTitle').value,
       content: document.getElementById('writeContentField').value,
-      image: document.getElementById('writeImage').value
+      image: ''
     };
+
+    setWriteBusy(true);
+
+    if (!selectedImageFile) {
+      finishSubmitWrite(payload);
+      return;
+    }
+
+    setUploadStatus('이미지 업로드 중...');
+    var reader = new FileReader();
+    reader.onload = function () {
+      var base64 = reader.result.split(',')[1];
+      google.script.run.withSuccessHandler(function (res) {
+        payload.image = res.url;
+        finishSubmitWrite(payload);
+      }).withFailureHandler(function (err) {
+        setWriteBusy(false);
+        setUploadStatus('');
+        onError(err);
+      }).uploadImage(base64, selectedImageFile.name, selectedImageFile.type);
+    };
+    reader.readAsDataURL(selectedImageFile);
+  }
+
+  function finishSubmitWrite(payload) {
+    setUploadStatus('게시글 등록 중...');
     google.script.run.withSuccessHandler(function (res) {
+      setWriteBusy(false);
+      setUploadStatus('');
       backToList();
       openPost(res.id);
       google.script.run.withSuccessHandler(onInitData).getInitData();
-    }).withFailureHandler(onError).createPost(payload);
+    }).withFailureHandler(function (err) {
+      setWriteBusy(false);
+      setUploadStatus('');
+      onError(err);
+    }).createPost(payload);
+  }
+
+  function setWriteBusy(busy) {
+    document.getElementById('writeSubmitBtn').disabled = busy;
+  }
+
+  function setUploadStatus(text) {
+    document.getElementById('uploadStatus').textContent = text;
   }
 
   function setView(name) { ['list', 'detail', 'write'].forEach(function (v) { document.getElementById('view-' + v).classList.toggle('hidden', v !== name); }); }

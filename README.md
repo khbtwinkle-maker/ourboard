@@ -58,6 +58,39 @@ Google Sheets를 데이터베이스로, Google Apps Script를 백엔드/웹서�
 - **카테고리 추가/변경**: `Code.gs`의 `CATEGORIES` 배열과 `JavaScript.html`의 `CATEGORY_ICON` / `CATEGORY_BADGE_CLASS`, `Stylesheet.html`의 `.badge-*`를 함께 수정하세요.
 - **이미지 업로드**: 현재는 URL 입력 방식입니다. 실제 파일 업로드가 필요하면 Google Drive API(`DriveApp`)를 이용해 업로드 후 URL을 저장하는 방식으로 확장할 수 있습니다.
 
+## 이미지 업로드 (Cloudflare R2) 설정
+
+글쓰기 화면에서 이미지 파일을 선택하면 Cloudflare R2에 업로드되고, 그 공개 URL이 게시글에 저장됩니다. 작동하려면 아래를 먼저 준비해야 합니다.
+
+### 1) Cloudflare에서 R2 버킷 만들기
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → 왼쪽 메뉴 **R2 Object Storage**
+2. **버킷 만들기** → 이름 입력(예: `ourboard-images`) → 생성
+3. 버킷 상세 페이지 → **설정(Settings)** 탭 → **공개 액세스(Public access)** → **R2.dev 서브도메인 허용**을 켜서 `https://pub-xxxxxxxx.r2.dev` 같은 공개 URL을 발급받으세요. (이 URL이 아래 `R2_PUBLIC_BASE_URL` 입니다.)
+
+### 2) API 토큰 만들기
+1. R2 개요 페이지 → **R2 API 토큰 관리** → **API 토큰 만들기**
+2. 권한: **개체 읽기 및 쓰기(Object Read & Write)**, 방금 만든 버킷으로 범위 제한 권장
+3. 생성하면 **Access Key ID**, **Secret Access Key**, **계정 ID(Account ID)** 가 표시됩니다 — 이 화면을 벗어나면 Secret Key는 다시 볼 수 없으니 꼭 복사해두세요.
+
+### 3) Apps Script에 자격증명 등록 (코드에 직접 쓰지 않음)
+1. Apps Script 편집기 → 왼쪽 **프로젝트 설정(⚙️)** 클릭
+2. 맨 아래 **스크립트 속성(Script properties)** → **속성 추가** 를 5번 눌러 아래 값을 각각 등록:
+
+| 속성 이름 | 값 |
+|---|---|
+| `R2_ACCOUNT_ID` | Cloudflare 계정 ID |
+| `R2_ACCESS_KEY_ID` | API 토큰의 Access Key ID |
+| `R2_SECRET_ACCESS_KEY` | API 토큰의 Secret Access Key |
+| `R2_BUCKET` | 버킷 이름 (예: `ourboard-images`) |
+| `R2_PUBLIC_BASE_URL` | 1)에서 발급받은 공개 URL (예: `https://pub-xxxxxxxx.r2.dev`) |
+
+3. 저장하면 바로 적용됩니다 (재배포 불필요 — Script properties는 배포와 무관하게 즉시 반영됩니다).
+
+### 참고
+- 이미지는 최대 8MB까지 허용됩니다 (`Code.js`의 `R2_MAX_BYTES`에서 조절 가능).
+- 업로드는 브라우저 → Apps Script(base64 전송) → R2 (AWS SigV4 서명 요청) 순서로 이뤄지며, R2 버킷 자체에 CORS 설정을 할 필요가 없습니다 (서버-서버 통신이라서요).
+- `preview.html`(로컬 미리보기)에서는 실제 R2를 쓰지 않고, 선택한 이미지를 그대로 화면에 보여주는 가짜 업로드로 동작합니다.
+
 ## clasp로 동기화하기 (선택, 권장)
 
 이 프로젝트는 [`clasp`](https://github.com/google/clasp)(구글 공식 CLI)로 Apps Script 프로젝트와 연결되어 있습니다. `.clasp.json`에 스크립트 ID가 저장되어 있어서, 아래 명령어로 브라우저 복사·붙여넣기 없이 바로 동기화할 수 있습니다.

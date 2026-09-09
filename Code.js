@@ -282,3 +282,107 @@ function likePost(id) {
   }
   throw new Error('게시글을 찾을 수 없습니다.');
 }
+
+/* ---------------- 이미지 업로드 (Cloudflare R2) ---------------- */
+/**
+ * 스크립트 속성(Project Settings > Script properties)에 아래 5개를 등록해야 동작합니다.
+ * R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL
+ */
+var R2_MAX_BYTES = 8 * 1024 * 1024; // 8MB
+
+function uploadImage(base64Data, fileName, mimeType) {
+  if (!base64Data) throw new Error('이미지 데이터가 없습니다.');
+
+  var props = PropertiesService.getScriptProperties();
+  var accountId = props.getProperty('R2_ACCOUNT_ID');
+  var accessKeyId = props.getProperty('R2_ACCESS_KEY_ID');
+  var secretAccessKey = props.getProperty('R2_SECRET_ACCESS_KEY');
+  var bucket = props.getProperty('R2_BUCKET');
+  var publicBaseUrl = props.getProperty('R2_PUBLIC_BASE_URL');
+
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicBaseUrl) {
+    throw new Error('R2 설정이 안 되어 있습니다. 스크립트 속성(R2_ACCOUNT_ID 등)을 먼저 등록해주세요.');
+  }
+
+  var bytes = Utilities.base64Decode(base64Data);
+  if (bytes.length > R2_MAX_BYTES) {
+    throw new Error('이미지 용량이 너무 큽니다 (최대 8MB).');
+  }
+
+  var ext = (String(fileName || '').match(/\.[a-zA-Z0-9]+$/) || [''])[0].toLowerCase();
+  var safeExt = /^\.[a-z0-9]{1,5}$/.test(ext) ? ext : '';
+  var key = 'uploads/' + Utilities.getUuid() + safeExt;
+
+  r2PutObject(accountId, accessKeyId, secretAccessKey, bucket, key, bytes, mimeType || 'application/octet-stream');
+
+  var base = publicBaseUrl.replace(/\/$/, '');
+  return { url: base + '/' + key };
+}
+
+function r2PutObject(accountId, accessKeyId, secretAccessKey, bucket, key, bytes, contentType) {
+  var region = 'auto';
+  var service = 's3';
+  var host = accountId + '.r2.cloudflarestorage.com';
+  var endpoint = 'https://' + host + '/' + bucket + '/' + key;
+
+  var now = new Date();
+  var amzDate = Utilities.formatDate(now, 'UTC', "yyyyMMdd'T'HHmmss'Z'");
+  var dateStamp = Utilities.formatDate(now, 'UTC', 'yyyyMMdd');
+
+  var payloadHash = toHex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes));
+
+  var canonicalUri = '/' + bucket + '/' + key.split('/').map(encodeURIComponent).join('/');
+  var canonicalHeaders = 'host:' + host + '\n' +
+    'x-amz-content-sha256:' + payloadHash + '\n' +
+    'x-amz-date:' + amzDate + '\n';
+  var signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+
+  var canonicalRequest = ['PUT', canonicalUri, '', canonicalHeaders, signedHeaders, payloadHash].join('\n');
+
+  var algorithm = 'AWS4-HMAC-SHA256';
+  var credentialScope = dateStamp + '/' + region + '/' + service + '/aws4_request';
+  var stringToSign = [
+    algorithm,
+    amzDate,
+    credentialScope,
+    toHex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, canonicalRequest))
+  ].join('\n');
+
+  var signingKey = getSignatureKey(secretAccessKey, dateStamp, region, service);
+  var signature = toHex(Utilities.computeHmacSha256Signature(stringToSign, signingKey));
+
+  var authorizationHeader = algorithm + ' Credential=' + accessKeyId + '/' + credentialScope +
+    ', SignedHeaders=' + signedHeaders + ', Signature=' + signature;
+
+  var options = {
+    method: 'put',
+    contentType: contentType,
+    payload: bytes,
+    headers: {
+      'x-amz-date': amzDate,
+      'x-amz-content-sha256': payloadHash,
+      'Authorization': authorizationHeader
+    },
+    muteHttpExceptions: true
+  };
+
+  var resp = UrlFetchApp.fetch(endpoint, options);
+  var code = resp.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error('R2 업로드 실패 (' + code + '): ' + resp.getContentText());
+  }
+}
+
+function getSignatureKey(secretKey, dateStamp, regionName, serviceName) {
+  var kDate = Utilities.computeHmacSha256Signature(dateStamp, 'AWS4' + secretKey);
+  var kRegion = Utilities.computeHmacSha256Signature(regionName, kDate);
+  var kService = Utilities.computeHmacSha256Signature(serviceName, kRegion);
+  return Utilities.computeHmacSha256Signature('aws4_request', kService);
+}
+
+function toHex(bytes) {
+  return bytes.reduce(function (str, b) {
+    var v = (b < 0 ? b + 256 : b).toString(16);
+    return str + (v.length === 1 ? '0' + v : v);
+  }, '');
+}

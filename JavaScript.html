@@ -25,6 +25,8 @@
   var CATEGORY_BADGE_CLASS = { free: 'badge-free', qna: 'badge-qna', info: 'badge-info', daily: 'badge-daily', photo: 'badge-photo', hobby: 'badge-hobby', notice: 'badge-notice' };
 
   var STATE = { categories: [], counts: {}, category: 'all', sort: 'latest', page: 1, keyword: '', currentPostId: null };
+  var selectedImageFile = null;
+  var MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
   document.addEventListener('DOMContentLoaded', boot);
 
@@ -47,6 +49,8 @@
     document.getElementById('writeCancelBtn').addEventListener('click', backToList);
     document.getElementById('backBtn').addEventListener('click', backToList);
     document.getElementById('writeForm').addEventListener('submit', submitWrite);
+    document.getElementById('writeImageFile').addEventListener('change', onImageFileSelected);
+    document.getElementById('imageRemoveBtn').addEventListener('click', clearSelectedImage);
 
     document.querySelectorAll('.sort-tab').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -304,7 +308,32 @@
         .map(function (c) { return '<option value="' + c.key + '">' + escapeHtml(c.label) + '</option>'; }).join('');
     }
     document.getElementById('writeForm').reset();
+    clearSelectedImage();
     setView('write');
+  }
+
+  function onImageFileSelected(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      alert('이미지 용량은 최대 8MB까지 가능합니다.');
+      e.target.value = '';
+      return;
+    }
+    selectedImageFile = file;
+    var reader = new FileReader();
+    reader.onload = function () {
+      document.getElementById('imagePreview').src = reader.result;
+      document.getElementById('imagePreviewWrap').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearSelectedImage() {
+    selectedImageFile = null;
+    document.getElementById('writeImageFile').value = '';
+    document.getElementById('imagePreview').src = '';
+    document.getElementById('imagePreviewWrap').classList.add('hidden');
   }
 
   function submitWrite(e) {
@@ -314,13 +343,53 @@
       author: document.getElementById('writeAuthor').value,
       title: document.getElementById('writeTitle').value,
       content: document.getElementById('writeContentField').value,
-      image: document.getElementById('writeImage').value
+      image: ''
     };
+
+    setWriteBusy(true);
+
+    if (!selectedImageFile) {
+      finishSubmitWrite(payload);
+      return;
+    }
+
+    setUploadStatus('이미지 업로드 중...');
+    var reader = new FileReader();
+    reader.onload = function () {
+      var base64 = reader.result.split(',')[1];
+      google.script.run.withSuccessHandler(function (res) {
+        payload.image = res.url;
+        finishSubmitWrite(payload);
+      }).withFailureHandler(function (err) {
+        setWriteBusy(false);
+        setUploadStatus('');
+        onError(err);
+      }).uploadImage(base64, selectedImageFile.name, selectedImageFile.type);
+    };
+    reader.readAsDataURL(selectedImageFile);
+  }
+
+  function finishSubmitWrite(payload) {
+    setUploadStatus('게시글 등록 중...');
     google.script.run.withSuccessHandler(function (res) {
+      setWriteBusy(false);
+      setUploadStatus('');
       backToList();
       openPost(res.id);
       google.script.run.withSuccessHandler(onInitData).getInitData();
-    }).withFailureHandler(onError).createPost(payload);
+    }).withFailureHandler(function (err) {
+      setWriteBusy(false);
+      setUploadStatus('');
+      onError(err);
+    }).createPost(payload);
+  }
+
+  function setWriteBusy(busy) {
+    document.getElementById('writeSubmitBtn').disabled = busy;
+  }
+
+  function setUploadStatus(text) {
+    document.getElementById('uploadStatus').textContent = text;
   }
 
   /* ---------------- 뷰 전환 ---------------- */
